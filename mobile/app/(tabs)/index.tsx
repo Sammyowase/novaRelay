@@ -1,98 +1,164 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
+import React, { useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { api, type Chain, type CreateIntentDto } from '@/lib/api';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
 
-export default function HomeScreen() {
+const CHAINS: Chain[] = ['stellar', 'solana'];
+
+export default function SendScreen() {
+  const scheme = useColorScheme() ?? 'light';
+  const tint = Colors[scheme].tint;
+
+  const [form, setForm] = useState<CreateIntentDto>({
+    fromChain: 'stellar',
+    toChain: 'solana',
+    amount: '',
+    asset: 'XLM',
+    recipient: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const set = (key: keyof CreateIntentDto) => (val: string) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
+  async function submit() {
+    if (!form.amount || !form.recipient) {
+      Alert.alert('Missing fields', 'Please fill in amount and recipient.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const intent = await api.createIntent(form);
+      Alert.alert('Intent submitted', `ID: ${intent.id}\nStatus: ${intent.status}`);
+    } catch (e: unknown) {
+      Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <ThemedText type="title" style={styles.heading}>
+          Send Intent
         </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <Label>From chain</Label>
+        <View style={styles.row}>
+          {CHAINS.map((c) => (
+            <TouchableOpacity
+              key={c}
+              style={[styles.chip, form.fromChain === c && { backgroundColor: tint }]}
+              onPress={() => set('fromChain')(c)}>
+              <ThemedText style={form.fromChain === c && styles.chipActive}>{c}</ThemedText>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Label>To chain</Label>
+        <View style={styles.row}>
+          {CHAINS.map((c) => (
+            <TouchableOpacity
+              key={c}
+              style={[styles.chip, form.toChain === c && { backgroundColor: tint }]}
+              onPress={() => set('toChain')(c)}>
+              <ThemedText style={form.toChain === c && styles.chipActive}>{c}</ThemedText>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <Label>Asset</Label>
+        <ThemedView style={styles.input}>
+          <TextInput
+            value={form.asset}
+            onChangeText={set('asset')}
+            placeholder="XLM"
+            placeholderTextColor="#888"
+            style={styles.inputText}
+            autoCapitalize="characters"
+          />
+        </ThemedView>
+
+        <Label>Amount</Label>
+        <ThemedView style={styles.input}>
+          <TextInput
+            value={form.amount}
+            onChangeText={set('amount')}
+            placeholder="0.00"
+            placeholderTextColor="#888"
+            style={styles.inputText}
+            keyboardType="decimal-pad"
+          />
+        </ThemedView>
+
+        <Label>Recipient address</Label>
+        <ThemedView style={styles.input}>
+          <TextInput
+            value={form.recipient}
+            onChangeText={set('recipient')}
+            placeholder="G... or wallet address"
+            placeholderTextColor="#888"
+            style={styles.inputText}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        </ThemedView>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: tint }]}
+          onPress={submit}
+          disabled={loading}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <ThemedText style={styles.buttonText}>Submit Intent</ThemedText>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
+function Label({ children }: { children: string }) {
+  return <ThemedText style={styles.label}>{children}</ThemedText>;
+}
+
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
+  container: { padding: 24, gap: 8 },
+  heading: { marginBottom: 16 },
+  label: { fontSize: 13, opacity: 0.6, marginTop: 12, marginBottom: 4 },
+  row: { flexDirection: 'row', gap: 8 },
+  chip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+  chipActive: { color: '#fff', fontWeight: '600' },
+  input: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  inputText: { fontSize: 16 },
+  button: {
+    marginTop: 24,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: 'center',
-    gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+  buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
 });
