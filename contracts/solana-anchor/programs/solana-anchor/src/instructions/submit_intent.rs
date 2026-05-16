@@ -1,5 +1,5 @@
 use anchor_lang::prelude::*;
-use crate::state::{IntentAccount, IntentStatus};
+use crate::state::{IntentAccount, IntentStatus, ProgramState};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct IntentParams {
@@ -12,6 +12,12 @@ pub struct IntentParams {
 #[derive(Accounts)]
 #[instruction(params: IntentParams)]
 pub struct SubmitIntent<'info> {
+    #[account(
+        mut,
+        seeds = [b"state"],
+        bump = state.bump
+    )]
+    pub state: Account<'info, ProgramState>,
     #[account(
         init,
         payer = submitter,
@@ -26,7 +32,9 @@ pub struct SubmitIntent<'info> {
 }
 
 pub fn handler(ctx: Context<SubmitIntent>, params: IntentParams) -> Result<()> {
+    let state = &mut ctx.accounts.state;
     let intent = &mut ctx.accounts.intent;
+    
     intent.id = params.id;
     intent.submitter = ctx.accounts.submitter.key();
     intent.amount = params.amount;
@@ -34,6 +42,12 @@ pub fn handler(ctx: Context<SubmitIntent>, params: IntentParams) -> Result<()> {
     intent.recipient = params.recipient;
     intent.status = IntentStatus::Pending;
     intent.created_at = Clock::get()?.unix_timestamp;
-    msg!("Intent {} submitted", params.id);
+    intent.executed_at = None;
+    intent.tx_hash = None;
+    intent.bump = ctx.bumps.intent;
+    
+    state.intent_count += 1;
+    
+    msg!("Intent {} submitted by {}", params.id, ctx.accounts.submitter.key());
     Ok(())
 }

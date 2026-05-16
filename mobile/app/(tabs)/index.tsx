@@ -41,8 +41,9 @@ export default function SendScreen() {
     }
     setLoading(true);
     try {
-      const intent = await api.createIntent(form);
+      const intent = await api.intents.create(form);
       Alert.alert('Intent submitted', `ID: ${intent.id}\nStatus: ${intent.status}`);
+      setForm({ fromChain: 'stellar', toChain: 'solana', amount: '', asset: 'XLM', recipient: '' });
     } catch (e: unknown) {
       Alert.alert('Error', e instanceof Error ? e.message : 'Unknown error');
     } finally {
